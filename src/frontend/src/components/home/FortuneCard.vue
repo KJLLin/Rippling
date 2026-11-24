@@ -1,16 +1,14 @@
 <!--
-  首页每日运势卡片（对齐洛谷首页）
+  首页每日运势卡片（对齐洛谷首页两态）
 
-  结构：
-    - 顶部：昵称 + "的运势"（右侧连续天数）
-    - 中间：大号「§ 档位 §」，未打卡显示「§ ? §」
-    - 宜 / 忌：左右两列，每条主项 + 一句结果说明
-    - 大吉：两宜 + "万事皆宜"；大凶："诸事不宜" + 两忌
-    - 底部："你已经在 XXX 连续打卡了 N 天" + 橙色打卡按钮
+  未打卡：欢迎卡 —— "欢迎回来，昵称" + 大号日期 + 星期 + 橙色「点击打卡」
+  已打卡：运势卡 —— "§ 档位 §" + 两列宜忌（每条带一句说明）+ 连续打卡文案
 
-  行为：
-    - 未打卡只显示占位，不返回运势（后端 fortune=null）
-    - 点击打卡后原地揭晓；断签按 2^(n-1) 扣减，不归零
+  对齐点：
+    - 六档：大吉 / 中吉 / 小吉 / 中平 / 凶 / 大凶
+    - 大吉两宜 + 万事皆宜；大凶诸事不宜 + 两忌
+    - 断签按 2^(n-1) 扣减，不清零
+    - 未打卡不返回运势，点完才揭晓
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
@@ -42,6 +40,20 @@ const siteName = computed(() => theme.siteName || "本站");
 const tone = computed(() =>
   status.value?.fortune ? TONE[status.value.fortune.level] : "#4E5969"
 );
+
+/** 把 YYYY-MM-DD 拆成大号日期需要的月 / 日 / 星期 */
+const today = computed(() => {
+  const raw = status.value?.date;
+  if (!raw) return { month: "", day: "", weekday: "" };
+  // date 已经是 UTC+8 的日历日，按 UTC 读出来即可，避免浏览器本地时区再偏一次
+  const d = new Date(`${raw}T00:00:00Z`);
+  const week = "日一二三四五六"[d.getUTCDay()] ?? "日";
+  return {
+    month: `${d.getUTCMonth() + 1}月`,
+    day: String(d.getUTCDate()),
+    weekday: `星期${week}`,
+  };
+});
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -84,78 +96,74 @@ onMounted(() => {
     class="card-base mb-3 !p-4"
     data-tour="home-fortune"
   >
-    <!-- 顶部：昵称 -->
-    <div class="flex items-center justify-between gap-2">
-      <p class="truncate text-xs text-ink-soft">{{ displayName }} 的运势</p>
-      <p v-if="status.fortune && status.streak > 0" class="shrink-0 text-[11px] text-ink-soft">
-        连续 {{ status.streak }} 天
-      </p>
-    </div>
+    <!-- ========== 已打卡：运势卡 ========== -->
+    <template v-if="status.fortune">
+      <div class="flex items-center justify-between gap-2">
+        <p class="truncate text-xs text-ink-soft">{{ displayName }} 的运势</p>
+        <p v-if="status.streak > 0" class="shrink-0 text-[11px] text-ink-soft">
+          连续 {{ status.streak }} 天
+        </p>
+      </div>
 
-    <!-- 大号档位 -->
-    <div class="mt-1 text-center">
-      <p
-        v-if="status.fortune"
-        class="text-[32px] font-bold leading-tight tracking-[0.06em]"
-        :style="{ color: tone }"
-      >
-        § {{ status.fortune.label }} §
-      </p>
-      <p v-else class="text-[32px] font-bold leading-tight tracking-[0.06em] text-ink-soft">
-        § ? §
-      </p>
-    </div>
+      <div class="mt-1 text-center">
+        <p
+          class="text-[32px] font-bold leading-tight tracking-[0.06em]"
+          :style="{ color: tone }"
+        >
+          § {{ status.fortune.label }} §
+        </p>
+      </div>
 
-    <!-- 宜 / 忌 -->
-    <div v-if="status.fortune" class="mt-2 grid grid-cols-2 items-start gap-x-4 gap-y-2 text-xs">
-      <div v-if="status.fortune.goods.length > 0" class="space-y-2">
-        <div v-for="item in status.fortune.goods" :key="`good-${item.text}`">
-          <p class="truncate">
-            <span class="text-[#F53F3F]">宜：</span><span class="text-ink">{{ item.text }}</span>
-          </p>
-          <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
+      <div class="mt-2 grid grid-cols-2 items-start gap-x-4 gap-y-2 text-xs">
+        <div v-if="status.fortune.goods.length > 0" class="space-y-2">
+          <div v-for="item in status.fortune.goods" :key="`good-${item.text}`">
+            <p class="truncate">
+              <span class="text-[#F53F3F]">宜：</span><span class="text-ink">{{ item.text }}</span>
+            </p>
+            <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
+          </div>
+        </div>
+        <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
+          {{ status.fortune.summary }}
+        </div>
+
+        <div v-if="status.fortune.bads.length > 0" class="space-y-2">
+          <div v-for="item in status.fortune.bads" :key="`bad-${item.text}`">
+            <p class="truncate">
+              <span class="text-ink-soft">忌：</span><span class="text-ink">{{ item.text }}</span>
+            </p>
+            <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
+          </div>
+        </div>
+        <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
+          {{ status.fortune.summary }}
         </div>
       </div>
-      <!-- 大凶：左边显示"诸事不宜" -->
-      <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
-        {{ status.fortune.summary }}
-      </div>
 
-      <div v-if="status.fortune.bads.length > 0" class="space-y-2">
-        <div v-for="item in status.fortune.bads" :key="`bad-${item.text}`">
-          <p class="truncate">
-            <span class="text-ink-soft">忌：</span><span class="text-ink">{{ item.text }}</span>
-          </p>
-          <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
-        </div>
-      </div>
-      <!-- 大吉：右边显示"万事皆宜" -->
-      <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
-        {{ status.fortune.summary }}
-      </div>
-    </div>
-
-    <!-- 未打卡占位 -->
-    <div v-else class="mt-2 grid grid-cols-2 gap-x-4 text-xs leading-relaxed text-ink-soft">
-      <div class="space-y-1.5">
-        <p>宜：?</p>
-        <p>宜：?</p>
-      </div>
-      <div class="space-y-1.5">
-        <p>忌：?</p>
-        <p>忌：?</p>
-      </div>
-    </div>
-
-    <!-- 连续打卡文案 -->
-    <p class="mt-3 text-center text-xs text-ink-soft">
-      <template v-if="status.streak > 0">
+      <p class="mt-3 text-center text-xs text-ink-soft">
         你已经在 {{ siteName }} 连续打卡了 {{ status.streak }} 天
-      </template>
-      <template v-else>今天还没打卡，点一下揭晓今日运势</template>
-    </p>
+      </p>
+    </template>
 
-    <!-- 打卡按钮（洛谷同款橙色） -->
+    <!-- ========== 未打卡：欢迎卡 ========== -->
+    <template v-else>
+      <p class="text-xs text-ink-soft">欢迎回来</p>
+      <p class="mt-0.5 truncate text-xl font-semibold text-ink">{{ displayName }}</p>
+
+      <div class="mt-4 flex items-end gap-3">
+        <div class="pb-1 text-[11px] leading-tight text-ink-soft">
+          {{ today.month }}<br />小
+        </div>
+        <p class="text-5xl font-bold leading-none text-ink">{{ today.day }}</p>
+        <p class="pb-1 text-xs text-ink-soft">{{ today.weekday }}</p>
+      </div>
+
+      <p class="mt-4 text-center text-xs text-ink-soft">
+        今天还没打卡，点一下揭晓今日运势
+      </p>
+    </template>
+
+    <!-- 打卡按钮 -->
     <button
       type="button"
       class="mt-2 w-full rounded-lg py-2 text-sm font-medium pressable"

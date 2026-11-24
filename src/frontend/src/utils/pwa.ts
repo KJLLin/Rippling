@@ -24,12 +24,38 @@ export function registerServiceWorker(): void {
 
   // window load 后注册，避免阻塞首屏
   window.addEventListener("load", () => {
+    const hadController = Boolean(navigator.serviceWorker.controller);
+
     navigator.serviceWorker
       .register("/sw.js")
+      .then((registration) => {
+        // 主动检查更新：PWA 默认可能隔很久才查一次，发版后用户会一直看到旧页面
+        void registration.update();
+
+        // 发现新版本 → 等它装好后通知它立即接管
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) {
+              worker.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
+      })
       .catch((err: unknown) => {
         // 注册失败不影响应用正常使用，仅记录警告
         console.warn("Service Worker 注册失败：", err);
       });
+
+    // 新 SW 接管后刷新一次，确保拿到新 index.html 和新 bundle
+    // 首次安装（之前没有 controller）不刷新，避免刚打开就闪一下
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
   });
 }
 
