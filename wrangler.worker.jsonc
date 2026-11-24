@@ -1,8 +1,8 @@
 {
-  // 测试 Worker 的配置（独立于 Pages 的 wrangler.toml）
+  // Worker 配置
   // 用法：npx wrangler deploy --config wrangler.worker.jsonc
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "longgaobei-final",
+  "name": "rippling",
   "main": "src/worker.ts",
   "compatibility_date": "2025-07-18",
   "compatibility_flags": ["nodejs_compat"],
@@ -15,25 +15,17 @@
     "not_found_handling": "single-page-application"
   },
 
-  // D1：先连测试库，切生产时只改这一处
+  // D1 数据库
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "longgao",
-      "database_id": "88689860-1a54-43ab-b1f7-47a2df08ca59"
+      "database_name": "rippling",
+      "database_id": "603159d9-65f1-46fc-bcbc-4dadd6ef2f3d"
     }
   ],
 
-  // workers.dev 保留（国内不可达，但本地/隧道里调试方便，也是旧链接的兜底）
+  // 先用 workers.dev 地址，绑定自有域名后再加 routes
   "workers_dev": true,
-
-  // 自定义域名：workers.dev 在国内基本不可达（共享域名），用自己的域名才行
-  // 这是 Custom Domain（不是普通 Route），Cloudflare 会自动建 DNS 记录并签发证书
-  "routes": [
-    { "pattern": "longgaobei.618271.xyz", "custom_domain": true },
-    // 短地址：学生手打更省事，老站点公告里就指向它
-    { "pattern": "lg.618271.xyz", "custom_domain": true }
-  ],
 
   "observability": { "enabled": true }
 }
