@@ -6,6 +6,7 @@
  *   GET  /users                  用户列表（access_admin_panel，可模糊搜索）
  *   GET  /user                   用户详情（access_admin_panel）
  *   PUT  /user/permissions       修改用户权限（edit_others_permission）
+ *   PUT  /user                   修改昵称 / 学号 / 权限（edit_others_permission）
  *   POST /user/ban               封禁用户（edit_others_permission）
  *   POST /user/unban             解封用户（edit_others_permission）
  *   POST /user/reset-violations  重置违规次数（edit_others_permission）
