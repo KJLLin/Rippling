@@ -25,14 +25,14 @@ const loading = ref(true);
 const status = ref<CheckinStatus | null>(null);
 const checking = ref(false);
 
-/** 档位颜色：大吉红、中吉橙、小吉/中平绿、凶灰、大凶红 */
+/** 档位颜色（对齐洛谷）：各种吉为红色，中平绿色，各种凶为灰黑色 */
 const TONE: Record<FortuneLevel, string> = {
-  great: "#F53F3F",
-  good: "#FF7D00",
-  small: "#00B42A",
+  great: "#CB2634",
+  good: "#E60012",
+  small: "#F53F3F",
   flat: "#00B42A",
   bad: "#4E5969",
-  terrible: "#F53F3F",
+  terrible: "#1D2129",
 };
 
 const displayName = computed(() => auth.username || "同学");
