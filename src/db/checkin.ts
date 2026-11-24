@@ -120,14 +120,8 @@ export function computeFortune(userId: string, date: string): FortuneInfo {
 
 /** 取 Asia/Shanghai 的今天，格式 YYYY-MM-DD */
 export function shanghaiToday(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
+  // 中国没有夏令时，固定 UTC+8 即可；直接做毫秒偏移比依赖 Intl 时区数据更稳。
+  return new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 /** 日期加减（YYYY-MM-DD），只做整日偏移，不受时区影响 */
