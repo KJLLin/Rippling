@@ -4,7 +4,7 @@
   对标洛谷首页：
     - 左侧：今日运势档位（大吉/中吉/小吉/中平/小凶）+ 连续打卡天数 + 打卡按钮
     - 右侧：宜 / 忌 各两条，内容固定由后端按 userId + 日期算出来
-    - 未打卡也能看到今日运势；打完卡按钮变成"今日已打卡"，连续天数 +1
+    - 未打卡只显示"打卡后揭晓"，打卡成功才弹出运势与宜忌（和洛谷一致）
 
   数据一次拉取，打卡成功后用返回值原地更新，不再多打一次接口。
 -->
@@ -31,7 +31,9 @@ const TONE: Record<FortuneLevel, string> = {
 };
 
 const displayName = computed(() => auth.username || "同学");
-const tone = computed(() => (status.value ? TONE[status.value.fortune.level] : TONE.flat));
+const tone = computed(() =>
+  status.value?.fortune ? TONE[status.value.fortune.level] : TONE.flat
+);
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -82,13 +84,24 @@ onMounted(() => {
           <p class="truncate text-[11px] leading-none text-ink-soft">
             {{ displayName }} 的运势
           </p>
-          <div class="mt-2 flex items-baseline gap-2">
+
+          <div v-if="status.fortune" class="mt-2 flex items-baseline gap-2">
             <span class="text-3xl font-bold leading-none" :style="{ color: tone }">
               {{ status.fortune.label }}
             </span>
             <span v-if="status.streak > 0" class="text-[11px] text-ink-soft">
               连续 {{ status.streak }} 天
             </span>
+          </div>
+
+          <div v-else class="mt-2">
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-bold leading-none text-ink-soft">?</span>
+              <span class="text-[11px] text-ink-soft">打卡后揭晓</span>
+            </div>
+            <p v-if="status.streak > 0" class="mt-1 text-[11px] text-ink-soft">
+              已连续 {{ status.streak }} 天
+            </p>
           </div>
         </div>
 
@@ -110,6 +123,7 @@ onMounted(() => {
 
       <!-- 右：宜 / 忌 -->
       <div class="flex w-[54%] shrink-0 flex-col justify-center gap-2.5 p-4">
+        <template v-if="status.fortune">
         <div class="flex items-start gap-2">
           <span
             class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold"
@@ -140,6 +154,12 @@ onMounted(() => {
               {{ item }}
             </p>
           </div>
+        </div>
+        </template>
+
+        <div v-else class="flex flex-1 flex-col items-center justify-center text-center">
+          <p class="text-xs text-ink-soft">今日宜忌</p>
+          <p class="mt-1 text-sm font-medium text-ink-soft">打卡后揭晓</p>
         </div>
       </div>
     </div>

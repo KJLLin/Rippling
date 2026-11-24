@@ -17,7 +17,8 @@ export interface FortuneInfo {
 export interface CheckinStatus {
   date: string;
   checkedIn: boolean;
-  fortune: FortuneInfo;
+  /** 未打卡时为 null，打卡后才揭晓 */
+  fortune: FortuneInfo | null;
   streak: number;
   total: number;
   /** 仅 POST 返回：本次提交时是否已经打过卡 */

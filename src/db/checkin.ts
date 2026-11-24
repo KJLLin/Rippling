@@ -34,8 +34,8 @@ export interface CheckinStatus {
   date: string;
   /** 今天是否已打卡 */
   checkedIn: boolean;
-  /** 今日运势 */
-  fortune: FortuneInfo;
+  /** 今日运势；未打卡时为 null（打卡后才揭晓） */
+  fortune: FortuneInfo | null;
   /** 当前连续打卡天数（未打卡时算到昨天为止） */
   streak: number;
   /** 累计打卡天数 */
@@ -186,7 +186,8 @@ export async function getCheckinStatus(
       .first<{ total: number }>(),
   ]);
 
-  let fortune = computeFortune(userId, date);
+  // 未打卡不返回运势：不然直接请求接口就能提前看到，打卡就没有"揭晓"感了
+  let fortune: FortuneInfo | null = null;
   if (row) {
     try {
       const goods = JSON.parse(row.goods) as string[];
@@ -194,13 +195,14 @@ export async function getCheckinStatus(
       if (Array.isArray(goods) && Array.isArray(bads)) {
         fortune = {
           level: row.level,
-          label: LEVELS.find((item) => item.level === row.level)?.label ?? fortune.label,
+          label: LEVELS.find((item) => item.level === row.level)?.label ?? "中平",
           goods,
           bads,
         };
       }
     } catch {
       // 存量数据损坏时回退到纯函数结果，不影响打卡
+      fortune = computeFortune(userId, date);
     }
   }
 
