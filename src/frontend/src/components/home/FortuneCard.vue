@@ -1,38 +1,39 @@
 <!--
-  首页每日运势卡片
+  首页每日运势卡片（对齐洛谷首页样式）
 
-  对标洛谷首页：
-    - 左侧：今日运势档位（大吉/中吉/小吉/中平/小凶）+ 连续打卡天数 + 打卡按钮
-    - 右侧：宜 / 忌 各两条，内容固定由后端按 userId + 日期算出来
-    - 未打卡只显示"打卡后揭晓"，打卡成功才弹出运势与宜忌（和洛谷一致）
+  结构：
+    - 顶部：昵称 + "的运势"（右侧连续天数）
+    - 中间：大号「$ 档位 $」，未打卡显示「$ ? $」
+    - 宜 / 忌：左右两列，各两条，格式「宜：xxx」
+    - 底部：连续打卡文案 + 橙色「点击打卡」按钮 + 累计天数
 
-  数据一次拉取，打卡成功后用返回值原地更新，不再多打一次接口。
+  行为：
+    - 未打卡只显示占位，不返回运势（后端 fortune=null）
+    - 点击打卡后原地揭晓档位与宜忌
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { doCheckin, getCheckinStatus } from "../../api/checkin";
-import type { CheckinStatus, FortuneLevel } from "../../api/checkin";
+import type { CheckinStatus } from "../../api/checkin";
 import { useAuthStore } from "../../stores/auth";
+import { useThemeStore } from "../../stores/theme";
 import { showToast } from "../../utils/toast";
 
 const auth = useAuthStore();
+const theme = useThemeStore();
 
 const loading = ref(true);
 const status = ref<CheckinStatus | null>(null);
 const checking = ref(false);
 
-/** 各档位的颜色：大吉红、中吉橙、小吉绿、中平灰、小凶蓝 */
-const TONE: Record<FortuneLevel, string> = {
-  great: "#EF4444",
-  good: "#F59E0B",
-  small: "#10B981",
-  flat: "#64748B",
-  bad: "#3B82F6",
-};
+/** 洛谷同款绿色；小凶用红色，避免"凶"也是绿的。 */
+const FORTUNE_GREEN = "#00B42A";
+const FORTUNE_RED = "#F53F3F";
 
 const displayName = computed(() => auth.username || "同学");
+const siteName = computed(() => theme.siteName || "本站");
 const tone = computed(() =>
-  status.value?.fortune ? TONE[status.value.fortune.level] : TONE.flat
+  status.value?.fortune?.level === "bad" ? FORTUNE_RED : FORTUNE_GREEN
 );
 
 async function load(): Promise<void> {
@@ -40,7 +41,6 @@ async function load(): Promise<void> {
   try {
     status.value = await getCheckinStatus();
   } catch {
-    // 拉不到就隐藏卡片，不打断首页推荐流
     status.value = null;
   } finally {
     loading.value = false;
@@ -70,98 +70,80 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="loading" class="card-base skeleton mb-3 h-28 !p-0" />
+  <div v-if="loading" class="card-base skeleton mb-3 h-48 !p-0" />
 
   <section
     v-else-if="status"
-    class="card-base mb-3 overflow-hidden !p-0"
+    class="card-base mb-3 !p-4"
     data-tour="home-fortune"
   >
-    <div class="flex items-stretch">
-      <!-- 左：运势 + 打卡 -->
-      <div class="flex min-w-0 flex-1 flex-col justify-between border-r border-line p-4">
-        <div>
-          <p class="truncate text-[11px] leading-none text-ink-soft">
-            {{ displayName }} 的运势
-          </p>
+    <!-- 顶部：昵称 + 连续天数 -->
+    <div class="flex items-center justify-between gap-2">
+      <p class="truncate text-xs text-ink-soft">{{ displayName }} 的运势</p>
+      <p v-if="status.fortune && status.streak > 0" class="shrink-0 text-[11px] text-ink-soft">
+        连续 {{ status.streak }} 天
+      </p>
+    </div>
 
-          <div v-if="status.fortune" class="mt-2 flex items-baseline gap-2">
-            <span class="text-3xl font-bold leading-none" :style="{ color: tone }">
-              {{ status.fortune.label }}
-            </span>
-            <span v-if="status.streak > 0" class="text-[11px] text-ink-soft">
-              连续 {{ status.streak }} 天
-            </span>
-          </div>
+    <!-- 大号档位 -->
+    <div class="mt-1 text-center">
+      <p
+        v-if="status.fortune"
+        class="text-[32px] font-bold leading-tight tracking-[0.08em]"
+        :style="{ color: tone }"
+      >
+        $ {{ status.fortune.label }} $
+      </p>
+      <p v-else class="text-[32px] font-bold leading-tight tracking-[0.08em] text-ink-soft">
+        $ ? $
+      </p>
+    </div>
 
-          <div v-else class="mt-2">
-            <div class="flex items-baseline gap-2">
-              <span class="text-3xl font-bold leading-none text-ink-soft">?</span>
-              <span class="text-[11px] text-ink-soft">打卡后揭晓</span>
-            </div>
-            <p v-if="status.streak > 0" class="mt-1 text-[11px] text-ink-soft">
-              已连续 {{ status.streak }} 天
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-3">
-          <button
-            type="button"
-            class="w-full rounded-lg px-3 py-1.5 text-xs font-medium pressable"
-            :class="status.checkedIn ? 'bg-line text-ink-soft' : 'bg-primary text-white'"
-            :disabled="status.checkedIn || checking"
-            @click="check"
-          >
-            {{ status.checkedIn ? "今日已打卡" : checking ? "打卡中…" : "点击打卡" }}
-          </button>
-          <p class="mt-1.5 text-center text-[10px] text-ink-soft">
-            累计 {{ status.total }} 天
-          </p>
-        </div>
+    <!-- 宜 / 忌 -->
+    <div v-if="status.fortune" class="mt-2 grid grid-cols-2 gap-4 text-xs leading-relaxed">
+      <div class="space-y-1">
+        <p v-for="item in status.fortune.goods" :key="`good-${item}`" class="truncate">
+          <span class="text-[#F53F3F]">宜：</span><span class="text-ink">{{ item }}</span>
+        </p>
       </div>
-
-      <!-- 右：宜 / 忌 -->
-      <div class="flex w-[54%] shrink-0 flex-col justify-center gap-2.5 p-4">
-        <template v-if="status.fortune">
-        <div class="flex items-start gap-2">
-          <span
-            class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold"
-            :style="{ color: '#10B981', background: 'color-mix(in srgb, #10B981 14%, transparent)' }"
-          >宜</span>
-          <div class="min-w-0 space-y-1">
-            <p
-              v-for="item in status.fortune.goods"
-              :key="`good-${item}`"
-              class="truncate text-xs leading-relaxed text-ink"
-            >
-              {{ item }}
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-start gap-2">
-          <span
-            class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold"
-            :style="{ color: '#EF4444', background: 'color-mix(in srgb, #EF4444 14%, transparent)' }"
-          >忌</span>
-          <div class="min-w-0 space-y-1">
-            <p
-              v-for="item in status.fortune.bads"
-              :key="`bad-${item}`"
-              class="truncate text-xs leading-relaxed text-ink"
-            >
-              {{ item }}
-            </p>
-          </div>
-        </div>
-        </template>
-
-        <div v-else class="flex flex-1 flex-col items-center justify-center text-center">
-          <p class="text-xs text-ink-soft">今日宜忌</p>
-          <p class="mt-1 text-sm font-medium text-ink-soft">打卡后揭晓</p>
-        </div>
+      <div class="space-y-1">
+        <p v-for="item in status.fortune.bads" :key="`bad-${item}`" class="truncate">
+          <span class="text-ink-soft">忌：</span><span class="text-ink">{{ item }}</span>
+        </p>
       </div>
     </div>
+
+    <div v-else class="mt-2 grid grid-cols-2 gap-4 text-xs leading-relaxed text-ink-soft">
+      <div class="space-y-1">
+        <p>宜：?</p>
+        <p>宜：?</p>
+      </div>
+      <div class="space-y-1">
+        <p>忌：?</p>
+        <p>忌：?</p>
+      </div>
+    </div>
+
+    <!-- 连续打卡文案 -->
+    <p class="mt-3 text-center text-xs text-ink-soft">
+      <template v-if="status.streak > 0">
+        你已经在 {{ siteName }} 连续打卡了 {{ status.streak }} 天
+      </template>
+      <template v-else>今天还没打卡，点一下揭晓今日运势</template>
+    </p>
+
+    <!-- 打卡按钮（洛谷同款橙色） -->
+    <button
+      type="button"
+      class="mt-2 w-full rounded-lg py-2 text-sm font-medium pressable"
+      :class="status.checkedIn ? 'bg-line text-ink-soft' : 'text-white'"
+      :style="status.checkedIn ? undefined : { backgroundColor: '#F97316' }"
+      :disabled="status.checkedIn || checking"
+      @click="check"
+    >
+      {{ status.checkedIn ? "今日已打卡" : checking ? "打卡中…" : "点击打卡" }}
+    </button>
+
+    <p class="mt-1.5 text-center text-[10px] text-ink-soft">累计打卡 {{ status.total }} 天</p>
   </section>
 </template>
