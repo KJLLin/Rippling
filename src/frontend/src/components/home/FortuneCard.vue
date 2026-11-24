@@ -95,8 +95,8 @@ onMounted(() => {
         <div class="mt-3">
           <button
             type="button"
-            class="w-full rounded-lg px-3 py-1.5 text-xs font-medium text-white pressable"
-            :class="status.checkedIn ? 'bg-line text-ink-soft' : 'bg-primary'"
+            class="w-full rounded-lg px-3 py-1.5 text-xs font-medium pressable"
+            :class="status.checkedIn ? 'bg-line text-ink-soft' : 'bg-primary text-white'"
             :disabled="status.checkedIn || checking"
             @click="check"
           >
