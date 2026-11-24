@@ -12,6 +12,7 @@
 import { onMounted, onBeforeUnmount, ref } from "vue";
 import { useRouter } from "vue-router";
 import FeedItem from "../components/post/FeedItem.vue";
+import FortuneCard from "../components/home/FortuneCard.vue";
 import AppSvgIcon from "../components/layout/AppSvgIcon.vue";
 import Collapse from "../components/common/Collapse.vue";
 import FeedSkeleton from "../components/common/FeedSkeleton.vue";
@@ -231,6 +232,9 @@ function goCreatePost(): void {
         刷新
       </button>
     </div>
+
+    <!-- 每日运势（对标洛谷首页，登录后展示） -->
+    <FortuneCard v-if="auth.isLoggedIn" />
 
     <!-- 首屏用骨架而不是转圈：形状先出来，内容到位时几乎不跳 -->
     <FeedSkeleton v-if="loading" />

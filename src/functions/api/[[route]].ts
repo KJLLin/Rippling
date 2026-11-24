@@ -41,7 +41,7 @@ import { loginWall } from "../../middleware/loginWall";
 import type { AppContextVars } from "../../middleware/auth";
 import { deviceMiddleware } from "../../middleware/device";
 import { edgeCache } from "../../middleware/edgeCache";
-import { postRoutes, likeRoutes, confessionRoutes, timelineRoutes, voteRoutes, recommendRoutes, searchRoutes, followRoutes, questionRoutes, notificationRoutes, blockRoutes, ticketRoutes, adminRoutes, adminLogRoutes, permissionRoutes, uploadRoutes, imageRoutes, userRoutes, setupRoutes } from "../../routes";
+import { postRoutes, likeRoutes, confessionRoutes, timelineRoutes, voteRoutes, recommendRoutes, searchRoutes, followRoutes, questionRoutes, notificationRoutes, blockRoutes, ticketRoutes, adminRoutes, adminLogRoutes, permissionRoutes, uploadRoutes, imageRoutes, userRoutes, setupRoutes, checkinRoutes } from "../../routes";
 import { nowISO } from "../../utils/time";
 import { NOT_FOUND } from "../../utils/errors";
 import { getSiteConfig } from "../../db";
@@ -141,6 +141,9 @@ app.route("/api/timeline", timelineRoutes);
 
 // 投票
 app.route("/api/vote", voteRoutes);
+
+// 每日运势打卡
+app.route("/api/checkin", checkinRoutes);
 
 // 推荐流 / 置顶
 app.route("/api/recommend", recommendRoutes);

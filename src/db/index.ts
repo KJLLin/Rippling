@@ -192,3 +192,7 @@ export {
   getUnreadCount,
   deleteNotification,
 } from "./notification";
+
+// 每日运势打卡
+export { getCheckinStatus, createCheckin, computeFortune } from "./checkin";
+export type { CheckinStatus, FortuneInfo, FortuneLevel } from "./checkin";
