@@ -1,17 +1,28 @@
 /**
  * 每日运势打卡 API（/api/checkin）
+ *
+ * 对齐洛谷：六档运势，每条宜忌带一句结果说明；
+ * 大吉只有宜 + "万事皆宜"，大凶只有忌 + "诸事不宜"。
  */
 
 import { apiGet, apiPost } from "./client";
 
 /** 运势档位 */
-export type FortuneLevel = "great" | "good" | "small" | "flat" | "bad";
+export type FortuneLevel = "great" | "good" | "small" | "flat" | "bad" | "terrible";
+
+/** 单条宜 / 忌 */
+export interface FortuneItem {
+  text: string;
+  note: string;
+}
 
 export interface FortuneInfo {
   level: FortuneLevel;
   label: string;
-  goods: string[];
-  bads: string[];
+  goods: FortuneItem[];
+  bads: FortuneItem[];
+  /** 大吉"万事皆宜" / 大凶"诸事不宜"，其余为 null */
+  summary: string | null;
 }
 
 export interface CheckinStatus {

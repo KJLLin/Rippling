@@ -1,20 +1,21 @@
 <!--
-  首页每日运势卡片（对齐洛谷首页样式）
+  首页每日运势卡片（对齐洛谷首页）
 
   结构：
     - 顶部：昵称 + "的运势"（右侧连续天数）
-    - 中间：大号「$ 档位 $」，未打卡显示「$ ? $」
-    - 宜 / 忌：左右两列，各两条，格式「宜：xxx」
-    - 底部：连续打卡文案 + 橙色「点击打卡」按钮 + 累计天数
+    - 中间：大号「§ 档位 §」，未打卡显示「§ ? §」
+    - 宜 / 忌：左右两列，每条主项 + 一句结果说明
+    - 大吉：两宜 + "万事皆宜"；大凶："诸事不宜" + 两忌
+    - 底部："你已经在 XXX 连续打卡了 N 天" + 橙色打卡按钮
 
   行为：
     - 未打卡只显示占位，不返回运势（后端 fortune=null）
-    - 点击打卡后原地揭晓档位与宜忌
+    - 点击打卡后原地揭晓；断签按 2^(n-1) 扣减，不归零
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { doCheckin, getCheckinStatus } from "../../api/checkin";
-import type { CheckinStatus } from "../../api/checkin";
+import type { CheckinStatus, FortuneLevel } from "../../api/checkin";
 import { useAuthStore } from "../../stores/auth";
 import { useThemeStore } from "../../stores/theme";
 import { showToast } from "../../utils/toast";
@@ -26,14 +27,20 @@ const loading = ref(true);
 const status = ref<CheckinStatus | null>(null);
 const checking = ref(false);
 
-/** 洛谷同款绿色；小凶用红色，避免"凶"也是绿的。 */
-const FORTUNE_GREEN = "#00B42A";
-const FORTUNE_RED = "#F53F3F";
+/** 档位颜色：大吉红、中吉橙、小吉/中平绿、凶灰、大凶红 */
+const TONE: Record<FortuneLevel, string> = {
+  great: "#F53F3F",
+  good: "#FF7D00",
+  small: "#00B42A",
+  flat: "#00B42A",
+  bad: "#4E5969",
+  terrible: "#F53F3F",
+};
 
 const displayName = computed(() => auth.username || "同学");
 const siteName = computed(() => theme.siteName || "本站");
 const tone = computed(() =>
-  status.value?.fortune?.level === "bad" ? FORTUNE_RED : FORTUNE_GREEN
+  status.value?.fortune ? TONE[status.value.fortune.level] : "#4E5969"
 );
 
 async function load(): Promise<void> {
@@ -70,14 +77,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="loading" class="card-base skeleton mb-3 h-48 !p-0" />
+  <div v-if="loading" class="card-base skeleton mb-3 h-56 !p-0" />
 
   <section
     v-else-if="status"
     class="card-base mb-3 !p-4"
     data-tour="home-fortune"
   >
-    <!-- 顶部：昵称 + 连续天数 -->
+    <!-- 顶部：昵称 -->
     <div class="flex items-center justify-between gap-2">
       <p class="truncate text-xs text-ink-soft">{{ displayName }} 的运势</p>
       <p v-if="status.fortune && status.streak > 0" class="shrink-0 text-[11px] text-ink-soft">
@@ -89,36 +96,52 @@ onMounted(() => {
     <div class="mt-1 text-center">
       <p
         v-if="status.fortune"
-        class="text-[32px] font-bold leading-tight tracking-[0.08em]"
+        class="text-[32px] font-bold leading-tight tracking-[0.06em]"
         :style="{ color: tone }"
       >
-        $ {{ status.fortune.label }} $
+        § {{ status.fortune.label }} §
       </p>
-      <p v-else class="text-[32px] font-bold leading-tight tracking-[0.08em] text-ink-soft">
-        $ ? $
+      <p v-else class="text-[32px] font-bold leading-tight tracking-[0.06em] text-ink-soft">
+        § ? §
       </p>
     </div>
 
     <!-- 宜 / 忌 -->
-    <div v-if="status.fortune" class="mt-2 grid grid-cols-2 gap-4 text-xs leading-relaxed">
-      <div class="space-y-1">
-        <p v-for="item in status.fortune.goods" :key="`good-${item}`" class="truncate">
-          <span class="text-[#F53F3F]">宜：</span><span class="text-ink">{{ item }}</span>
-        </p>
+    <div v-if="status.fortune" class="mt-2 grid grid-cols-2 items-start gap-x-4 gap-y-2 text-xs">
+      <div v-if="status.fortune.goods.length > 0" class="space-y-2">
+        <div v-for="item in status.fortune.goods" :key="`good-${item.text}`">
+          <p class="truncate">
+            <span class="text-[#F53F3F]">宜：</span><span class="text-ink">{{ item.text }}</span>
+          </p>
+          <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
+        </div>
       </div>
-      <div class="space-y-1">
-        <p v-for="item in status.fortune.bads" :key="`bad-${item}`" class="truncate">
-          <span class="text-ink-soft">忌：</span><span class="text-ink">{{ item }}</span>
-        </p>
+      <!-- 大凶：左边显示"诸事不宜" -->
+      <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
+        {{ status.fortune.summary }}
+      </div>
+
+      <div v-if="status.fortune.bads.length > 0" class="space-y-2">
+        <div v-for="item in status.fortune.bads" :key="`bad-${item.text}`">
+          <p class="truncate">
+            <span class="text-ink-soft">忌：</span><span class="text-ink">{{ item.text }}</span>
+          </p>
+          <p class="truncate pl-[1.6em] text-[10px] leading-snug text-ink-soft">{{ item.note }}</p>
+        </div>
+      </div>
+      <!-- 大吉：右边显示"万事皆宜" -->
+      <div v-else class="flex h-full items-center justify-center py-3 text-sm font-medium text-ink-soft">
+        {{ status.fortune.summary }}
       </div>
     </div>
 
-    <div v-else class="mt-2 grid grid-cols-2 gap-4 text-xs leading-relaxed text-ink-soft">
-      <div class="space-y-1">
+    <!-- 未打卡占位 -->
+    <div v-else class="mt-2 grid grid-cols-2 gap-x-4 text-xs leading-relaxed text-ink-soft">
+      <div class="space-y-1.5">
         <p>宜：?</p>
         <p>宜：?</p>
       </div>
-      <div class="space-y-1">
+      <div class="space-y-1.5">
         <p>忌：?</p>
         <p>忌：?</p>
       </div>
