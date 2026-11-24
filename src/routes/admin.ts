@@ -43,6 +43,7 @@ import type { SiteConfig } from "../db/siteConfig";
 import type { ArchiveEnv } from "../utils/archive";
 import {
   getAdminUserInfo,
+  updateAdminUser,
   listUsersForAdmin,
   setUserPermissions,
   banUser,
@@ -208,6 +209,92 @@ adminRoutes.put("/user/permissions", async (c) => {
   if (!ok) return errorResponse(c, NOT_FOUND);
 
   return c.json({ success: true });
+});
+
+// ------------------------------------------------------------
+//  PUT /user  — 修改用户资料与权限（edit_others_permission）
+//
+//  一次性更新昵称 / 学号 / 权限，避免管理员在多个接口之间来回切。
+// ------------------------------------------------------------
+
+adminRoutes.put("/user", async (c) => {
+  const user = c.get("user");
+  if (!user) return errorResponse(c, UNAUTHORIZED);
+
+  if (!can(user as CurrentUser, PERM_EDIT_OTHERS_PERMISSION)) {
+    return errorResponse(c, NOT_FOUND);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await c.req.json()) as Record<string, unknown>;
+  } catch {
+    return errorResponse(c, VALIDATION_ERROR, "请求体格式错误");
+  }
+
+  const userId = String(body.userId ?? "").trim();
+  const username = String(body.username ?? "").trim();
+  const studentId = String(body.studentId ?? "").trim();
+  const permissionsRaw = body.permissions;
+
+  if (!userId) return errorResponse(c, VALIDATION_ERROR, "缺少 userId");
+  if (!username) return errorResponse(c, VALIDATION_ERROR, "昵称不能为空");
+  if (username.length > 24) return errorResponse(c, VALIDATION_ERROR, "昵称最多 24 个字符");
+  if (!studentId) return errorResponse(c, VALIDATION_ERROR, "学号不能为空");
+  if (studentId.length > 32) return errorResponse(c, VALIDATION_ERROR, "学号最多 32 个字符");
+
+  if (permissionsRaw === undefined || permissionsRaw === null) {
+    return errorResponse(c, VALIDATION_ERROR, "缺少 permissions");
+  }
+
+  let permissions: bigint;
+  try {
+    permissions =
+      typeof permissionsRaw === "string"
+        ? BigInt(permissionsRaw)
+        : BigInt(permissionsRaw as number);
+  } catch {
+    return errorResponse(c, VALIDATION_ERROR, "permissions 格式错误");
+  }
+  if (permissions < 0n) return errorResponse(c, VALIDATION_ERROR, "permissions 不能为负数");
+
+  // 学号仍需符合站点规则，防止管理员手滑改出一个登不进来的学号
+  const cfg = (await getSiteConfig(c.env.DB)) ?? staticSiteConfig;
+  try {
+    if (!new RegExp(cfg.studentIdPattern).test(studentId)) {
+      return errorResponse(
+        c,
+        VALIDATION_ERROR,
+        `学号不符合站点规则 —— ${cfg.studentIdHint}`
+      );
+    }
+  } catch {
+    // 正则本身写坏时不让保存卡死，交给下面的唯一性检查兜底
+  }
+
+  const result = await updateAdminUser(
+    c.env.DB,
+    userId,
+    { username, studentId, permissions },
+    user as CurrentUser
+  );
+
+  if (result === "forbidden") return errorResponse(c, NOT_FOUND);
+  if (result === "not_found") return errorResponse(c, NOT_FOUND);
+  if (result === "username_taken") {
+    return errorResponse(c, VALIDATION_ERROR, "这个昵称已经被占用");
+  }
+  if (result === "student_id_taken") {
+    return errorResponse(c, VALIDATION_ERROR, "这个学号已经被其他账号绑定");
+  }
+  if (result === "email_taken") {
+    return errorResponse(c, VALIDATION_ERROR, "该学号对应的登录邮箱已被占用");
+  }
+
+  const info = await getAdminUserInfo(c.env.DB, userId);
+  if (!info) return errorResponse(c, NOT_FOUND);
+
+  return c.json({ success: true, data: toResponse(info) });
 });
 
 // ------------------------------------------------------------

@@ -38,6 +38,7 @@ export {
   getUserPermissions,
   updateUserNameColor,
   getAdminUserInfo,
+  updateAdminUser,
   listUsersForAdmin,
   setUserPermissions,
   banUser,
@@ -47,7 +48,7 @@ export {
   deleteUserDevice,
   setMainUserDevice,
 } from "./user";
-export type { AdminUserInfo, UserPublicProfile, UserDeviceInfo } from "./user";
+export type { AdminUserInfo, UserPublicProfile, UserDeviceInfo, UpdateAdminUserResult } from "./user";
 
 // 管理日志
 export { writeAdminLog, listAdminLogs } from "./adminLog";

@@ -56,6 +56,18 @@ export function setUserPermissions(userId: string, permissions: string): Promise
   return apiPut<void>("/api/admin/user/permissions", { userId, permissions });
 }
 
+/** 管理员修改用户资料与权限（昵称 / 学号 / 权限一次提交） */
+export interface AdminUserUpdateInput {
+  userId: string;
+  username: string;
+  studentId: string;
+  permissions: string;
+}
+
+export function updateAdminUser(input: AdminUserUpdateInput): Promise<AdminUserInfo> {
+  return apiPut<AdminUserInfo>("/api/admin/user", input);
+}
+
 /** 封禁用户 */
 export function banUser(userId: string): Promise<void> {
   return apiPost<void>("/api/admin/user/ban", { userId });

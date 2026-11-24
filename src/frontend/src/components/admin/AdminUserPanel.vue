@@ -2,8 +2,8 @@
   管理面板 — 用户管理子面板
 
   - 搜索框（300ms 防抖）按用户名 / 学号模糊搜索
-  - 用户列表：用户名、学号、权限掩码（十进制）、违规次数、状态（正常/封禁/注销）
-  - 操作（edit_others_permission 权限）：查看详情弹窗、修改权限弹窗、
+  - 用户列表：用户名、学号、权限摘要、违规次数、状态（正常/封禁/注销）
+  - 操作（edit_others_permission 权限）：查看详情、打开「权限管理」页改昵称/学号/权限、
     封禁 / 解封、重置违规次数
 -->
 <script setup lang="ts">
@@ -11,15 +11,16 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import LoadingSpinner from "../common/LoadingSpinner.vue";
 import EmptyState from "../common/EmptyState.vue";
 import ErrorState from "../common/ErrorState.vue";
+import AdminUserEditor from "./AdminUserEditor.vue";
 import {
   listUsersForAdmin,
   getAdminUser,
-  setUserPermissions,
   banUser,
   unbanUser,
   resetUserViolations,
 } from "../../api/admin";
 import { showToast } from "../../utils/toast";
+import { describePermissions } from "../../utils/sitePermissions";
 import type { AdminUserInfo } from "../../types";
 
 /** 是否具备 edit_others_permission（写操作入口显隐） */
@@ -43,10 +44,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const detailUser = ref<AdminUserInfo | null>(null);
 const detailLoading = ref(false);
 
-/** 权限编辑弹窗 */
-const permUser = ref<AdminUserInfo | null>(null);
-const permInput = ref("");
-const permSaving = ref(false);
+/** 权限 / 资料编辑页 */
+const editorUser = ref<AdminUserInfo | null>(null);
 
 /** 用户状态标签：注销 > 封禁 > 正常 */
 function statusOf(user: AdminUserInfo): { label: string; tone: "danger" | "soft" | "ok" } {
@@ -119,32 +118,16 @@ async function openDetail(user: AdminUserInfo): Promise<void> {
   }
 }
 
-/** 打开权限编辑弹窗（预填当前掩码） */
-function openPermEditor(user: AdminUserInfo): void {
-  permUser.value = user;
-  permInput.value = user.permissions;
+/** 打开权限 / 资料编辑页 */
+function openEditor(user: AdminUserInfo): void {
+  editorUser.value = user;
 }
 
-/** 提交权限修改：数字输入 → BigInt → 十进制字符串 */
-async function submitPermissions(): Promise<void> {
-  if (!permUser.value || permSaving.value) return;
-  const raw = permInput.value.trim();
-  if (!/^\d+$/.test(raw)) {
-    showToast("权限掩码须为非负十进制整数", "error");
-    return;
-  }
-  permSaving.value = true;
-  try {
-    // BigInt 转换避免超出 Number 安全范围
-    await setUserPermissions(permUser.value.id, BigInt(raw).toString());
-    showToast("权限已更新", "success");
-    permUser.value = null;
-    load();
-  } catch {
-    // Toast 由 client 层统一处理
-  } finally {
-    permSaving.value = false;
-  }
+/** 编辑页保存成功：关掉详情，刷新列表 */
+function onEditorSaved(updated: AdminUserInfo): void {
+  editorUser.value = null;
+  if (detailUser.value?.id === updated.id) detailUser.value = null;
+  load();
 }
 
 /** 封禁 / 解封 / 重置违规（二次确认防误触） */
@@ -207,7 +190,7 @@ onUnmounted(() => {
           </div>
           <div class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-soft">
             <span>学号：{{ user.studentId ?? "未绑定" }}</span>
-            <span class="break-all">权限：{{ user.permissions }}</span>
+            <span class="break-all">权限：{{ describePermissions(user.permissions) }}</span>
           </div>
 
           <!-- 操作按钮组 -->
@@ -216,8 +199,8 @@ onUnmounted(() => {
               详情
             </button>
             <template v-if="props.canManage">
-              <button type="button" class="btn-secondary !px-3 !py-1" @click="openPermEditor(user)">
-                权限
+              <button type="button" class="btn-secondary !px-3 !py-1" @click="openEditor(user)">
+                权限管理
               </button>
               <button
                 v-if="user.permissions === BANNED_MASK"
@@ -292,37 +275,28 @@ onUnmounted(() => {
             <span>{{ detailUser.createdAt.slice(0, 10) }}</span>
           </div>
           <div class="flex justify-between gap-3">
-            <span class="shrink-0 text-ink-soft">权限掩码</span>
-            <span class="break-all">{{ detailUser.permissions }}</span>
+            <span class="shrink-0 text-ink-soft">权限</span>
+            <span class="break-all">{{ describePermissions(detailUser.permissions) }}</span>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- 权限编辑弹窗 -->
-    <div v-if="permUser" class="fixed inset-0 z-50 flex items-end bg-black/40" @click.self="permUser = null">
-      <div class="w-full rounded-t-2xl bg-surface p-4">
-        <h3 class="text-base font-semibold">修改权限 · {{ permUser.username }}</h3>
-        <p class="mt-1 text-xs text-ink-soft">输入十进制权限掩码（将转为 BigInt 提交）</p>
-        <input
-          v-model="permInput"
-          type="text"
-          inputmode="numeric"
-          class="input-base mt-3 w-full"
-          placeholder="如 70368744177665"
-        />
-        <div class="mt-3 flex gap-2">
-          <button type="button" class="btn-secondary flex-1" @click="permUser = null">取消</button>
           <button
+            v-if="props.canManage"
             type="button"
-            class="btn-primary flex-1"
-            :disabled="permSaving"
-            @click="submitPermissions"
+            class="btn-primary mt-3 w-full"
+            @click="openEditor(detailUser)"
           >
-            {{ permSaving ? "保存中…" : "保存" }}
+            修改资料与权限
           </button>
         </div>
       </div>
     </div>
+
+    <!-- 权限 / 资料编辑页 -->
+    <AdminUserEditor
+      v-if="editorUser"
+      :user="editorUser"
+      @close="editorUser = null"
+      @saved="onEditorSaved"
+    />
   </div>
 </template>

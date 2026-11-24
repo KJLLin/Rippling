@@ -750,6 +750,110 @@ export async function getAdminUserInfo(
   return toAdminUserInfo(row, nameColors, siteCfg?.autoBlock);
 }
 
+/** 管理员编辑用户资料 / 权限的结果 */
+export type UpdateAdminUserResult =
+  | "ok"
+  | "forbidden"
+  | "not_found"
+  | "username_taken"
+  | "student_id_taken"
+  | "email_taken";
+
+/**
+ * 管理员修改用户资料与权限
+ *
+ * - username：同步 user_profile.username 与 Better Auth user.name
+ * - studentId：同步 user.email（登录用 学号@rippling.local）
+ * - permissions：直接写入权限掩码
+ *
+ * 三条更新 + admin_log + user_log 放在同一个 D1 batch 里，失败整体回滚。
+ */
+export async function updateAdminUser(
+  db: D1Database,
+  userId: string,
+  data: { username: string; studentId: string; permissions: bigint },
+  adminUser: CurrentUser | null
+): Promise<UpdateAdminUserResult> {
+  if (!adminUser || !can(adminUser, PERM_EDIT_OTHERS_PERMISSION)) return "forbidden";
+
+  const current = await db
+    .prepare(
+      "SELECT username, studentId, permissions FROM user_profile WHERE userId = ? LIMIT 1"
+    )
+    .bind(userId)
+    .first<{ username: string; studentId: string | null; permissions: number }>();
+
+  if (!current) return "not_found";
+
+  const email = `${data.studentId}@rippling.local`;
+  const now = nowISO();
+
+  if (data.username !== current.username) {
+    const taken = await db
+      .prepare("SELECT userId FROM user_profile WHERE username = ? AND userId != ? LIMIT 1")
+      .bind(data.username, userId)
+      .first();
+    if (taken) return "username_taken";
+  }
+
+  if (data.studentId !== current.studentId) {
+    const taken = await db
+      .prepare("SELECT userId FROM user_profile WHERE studentId = ? AND userId != ? LIMIT 1")
+      .bind(data.studentId, userId)
+      .first();
+    if (taken) return "student_id_taken";
+  }
+
+  const emailTaken = await db
+    .prepare("SELECT id FROM user WHERE email = ? AND id != ? LIMIT 1")
+    .bind(email, userId)
+    .first();
+  if (emailTaken) return "email_taken";
+
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE user_profile SET username = ?, studentId = ?, permissions = ?, updatedAt = ? WHERE userId = ?"
+      )
+      .bind(data.username, data.studentId, Number(data.permissions), now, userId),
+    db
+      .prepare("UPDATE user SET name = ?, email = ?, updatedAt = ? WHERE id = ?")
+      .bind(data.username, email, now, userId),
+    db
+      .prepare(
+        `INSERT INTO admin_log (id, adminId, action, targetType, targetId, detail, createdAt)
+         VALUES (?, ?, 'edit_user', 'user', ?, ?, ?)`
+      )
+      .bind(
+        generateUUID(),
+        adminUser.id,
+        userId,
+        JSON.stringify({
+          username: { from: current.username, to: data.username },
+          studentId: { from: current.studentId, to: data.studentId },
+          permissions: { from: String(current.permissions), to: String(data.permissions) },
+        }),
+        now
+      ),
+    db
+      .prepare(
+        `INSERT INTO user_log (id, userId, action, detail, createdAt)
+         VALUES (?, ?, 'admin_update_profile', ?, ?)`
+      )
+      .bind(
+        generateUUID(),
+        userId,
+        JSON.stringify({
+          username: { from: current.username, to: data.username },
+          studentId: { from: current.studentId, to: data.studentId },
+        }),
+        now
+      ),
+  ]);
+
+  return "ok";
+}
+
 /**
  * 列出用户（管理视图）
  *
